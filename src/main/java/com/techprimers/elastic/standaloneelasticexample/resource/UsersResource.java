@@ -1,5 +1,10 @@
 package com.techprimers.elastic.standaloneelasticexample.resource;
 
+import com.techprimers.elastic.standaloneelasticexample.entity.Comments;
+import com.techprimers.elastic.standaloneelasticexample.repository.CommentsRepository;
+import org.elasticsearch.action.bulk.BulkProcessor;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
@@ -9,6 +14,8 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.transport.client.PreBuiltTransportClient;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,11 +34,13 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public class UsersResource {
 
     TransportClient client;
+    //    private CommentsService commentsService;
+    private CommentsRepository repository;
 
-    public UsersResource() throws UnknownHostException {
+    public UsersResource(CommentsRepository repository) throws UnknownHostException {
         client = new PreBuiltTransportClient(Settings.EMPTY)
                 .addTransportAddress(new InetSocketTransportAddress(InetAddress.getByName("localhost"), 9300));
-
+        this.repository = repository;
     }
 
     @GetMapping("/insert/{id}")
@@ -87,5 +96,26 @@ public class UsersResource {
 
         System.out.println(deleteResponse.getResult().toString());
         return deleteResponse.getResult().toString();
+    }
+
+    @GetMapping("/comments")
+    public void addComment() {
+                Page<Comments> comments = repository.findAll(new PageRequest(0,1000000));
+                comments.forEach(x -> {
+                    try {
+                        IndexResponse response = client.prepareIndex("comments", "id", x.getId())
+                                .setSource(jsonBuilder()
+                                                .startObject()
+                                                .field("text", x.getText())
+                                                .field("likes", x.getLikes())
+                                                .endObject()
+                                )
+                                .get();
+                        System.out.println(response.getResult().toString());
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                });
+        System.out.println("Fin");
     }
 }
